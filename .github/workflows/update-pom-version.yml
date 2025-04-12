@@ -44,23 +44,29 @@ jobs:
         echo "Checking git configuration:"
         git config --list
 
-    - name: Find and update POM versions
+    - name: Find and update POM versions for pdfl artifact
       run: |
         # Create a new branch
         BRANCH_NAME="update-pom-versions-$(date +%Y%m%d%H%M%S)"
         git checkout -b "$BRANCH_NAME"
 
-        # Find and update all <version> elements in pom.xml files
+        # Find and update <version> elements only for <artifactId>pdfl</artifactId> in pom.xml files
         find . -name "pom.xml" | while read -r POM_FILE; do
-          sed -i -E 's/(<version>[0-9]+\.[0-9]+)\.([0-9]+)(-SNAPSHOT<\/version>)/echo \1.$((\2 + 1))\3/e' "$POM_FILE"
-          NEW_VERSION=$(grep -oP '(?<=<version>)[0-9]+\.[0-9]+\.[0-9]+(?=-SNAPSHOT<\/version>)' "$POM_FILE" | head -n 1)
+          awk '/<artifactId>pdfl<\/artifactId>/ {found=1} /<version>/ && found { \
+            sub(/<version>[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT<\/version>/, \
+            "<version>" gensub(/([0-9]+)\.([0-9]+)\.([0-9]+)-SNAPSHOT/, "\\1.\\2." (\\3+1) "-SNAPSHOT", "g", "&") "</version>"); \
+            found=0 \
+          } 1' "$POM_FILE" > tmp && mv tmp "$POM_FILE"
+
+          # Print the path of the modified POM file
+          echo "Modified POM file: $POM_FILE"
         done
 
         # Commit the changes with the new version in the message
         git config user.name "datalogics-devauto"
         git config user.email "datalogics-devauto@datalogics.com"
         git add .
-        git commit -m "Update minor version to $NEW_VERSION in all pom.xml files (Version: $NEW_VERSION)"
+        git commit -m "Update minor version for pdfl artifact in all pom.xml files"
 
         # Push the branch to origin
         git push origin "$BRANCH_NAME"
